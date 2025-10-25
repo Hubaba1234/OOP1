@@ -1,20 +1,25 @@
 import java.io.*;
 import java.nio.file.*;
 import java.util.*;
-import java.util.Scanner;
+import java.util.stream.Collectors;
 
 public class TextFileComparator {
+    private ComparatorConfig config;
 
-    public static void main(String[] args) {
+    public TextFileComparator() {
+        this.config = new ComparatorConfig();
+    }
+
+    public void run() {
         Scanner scanner = new Scanner(System.in);
 
-        System.out.println("----------------------------------------");
-        System.out.println("       КОМПАРАТОР ТЕКСТОВЫХ ФАЙЛОВ      ");
-        System.out.println("----------------------------------------");
+        System.out.println("========================================");
+        System.out.println("        КОМПАРАТОР ТЕКСТОВЫХ ФАЙЛОВ     ");
+        System.out.println("           Объектная версия            ");
+        System.out.println("========================================");
         System.out.println();
 
         try {
-            // Запрос путей к файлам
             System.out.print("Введите путь к первому файлу: ");
             String file1Path = scanner.nextLine().trim();
 
@@ -22,28 +27,13 @@ public class TextFileComparator {
             String file2Path = scanner.nextLine().trim();
 
             System.out.println();
-            System.out.println("Настройки сравнения:");
 
-            System.out.print("Игнорировать пробелы? (y/n): ");
-            boolean ignoreWhitespace = scanner.nextLine().trim().equalsIgnoreCase("y");
+            showCurrentConfig();
+            System.out.print("Изменить настройки сравнения? (y/n): ");
+            boolean changeConfig = scanner.nextLine().trim().equalsIgnoreCase("y");
 
-            System.out.print("Игнорировать регистр? (y/n): ");
-            boolean ignoreCase = scanner.nextLine().trim().equalsIgnoreCase("y");
-
-            System.out.print("Показывать контекст? (y/n): ");
-            boolean showContext = scanner.nextLine().trim().equalsIgnoreCase("y");
-
-            int contextLines = 3;
-            if (showContext) {
-                System.out.print("Сколько строк контекста показывать? (по умолчанию 3): ");
-                String contextInput = scanner.nextLine().trim();
-                if (!contextInput.isEmpty()) {
-                    try {
-                        contextLines = Integer.parseInt(contextInput);
-                    } catch (NumberFormatException e) {
-                        System.out.println("Неверный формат, использую значение по умолчанию: 3");
-                    }
-                }
+            if (changeConfig) {
+                configureSettings(scanner);
             }
 
             System.out.println();
@@ -59,9 +49,9 @@ public class TextFileComparator {
                 return;
             }
 
-            ComparisonResult result = compareFiles(file1Path, file2Path, ignoreWhitespace, ignoreCase);
+            ComparisonResult result = compareFiles(file1Path, file2Path);
 
-            printComparisonResult(result, showContext, contextLines);
+            printComparisonResult(result);
 
         } catch (IOException e) {
             System.out.println("Ошибка при чтении файлов: " + e.getMessage());
@@ -73,18 +63,70 @@ public class TextFileComparator {
         System.out.println("Работа программы завершена");
     }
 
-    public static ComparisonResult compareFiles(String file1Path, String file2Path,
-                                                boolean ignoreWhitespace, boolean ignoreCase) throws IOException {
-        List<String> lines1 = readFile(file1Path, ignoreWhitespace, ignoreCase);
-        List<String> lines2 = readFile(file2Path, ignoreWhitespace, ignoreCase);
+
+    private void showCurrentConfig() {
+        System.out.println("----------------------------------------");
+        System.out.println("           ТЕКУЩИЕ НАСТРОЙКИ           ");
+        System.out.println("----------------------------------------");
+        System.out.printf("  • Игнорировать пробелы: %s%n", (config.isIgnoreWhitespace() ? "ДА" : "НЕТ"));
+        System.out.printf("  • Игнорировать регистр: %s%n", (config.isIgnoreCase() ? "ДА" : "НЕТ"));
+        System.out.printf("  • Показывать контекст:  %s%n", (config.isShowContext() ? "ДА" : "НЕТ"));
+        if (config.isShowContext()) {
+            System.out.printf("  • Строк контекста:    %d%n", config.getContextLines());
+        }
+        System.out.println("----------------------------------------");
+        System.out.println();
+    }
+
+
+    private void configureSettings(Scanner scanner) {
+        System.out.println();
+        System.out.println("----------------------------------------");
+        System.out.println("           НАСТРОЙКА ПАРАМЕТРОВ         ");
+        System.out.println("----------------------------------------");
+        System.out.println();
+
+        System.out.print("Игнорировать пробелы? (y/n, по умолчанию y): ");
+        String whitespaceInput = scanner.nextLine().trim();
+        if (!whitespaceInput.isEmpty()) {
+            config.setIgnoreWhitespace(whitespaceInput.equalsIgnoreCase("y"));
+        }
+
+        System.out.print("Игнорировать регистр? (y/n, по умолчанию y): ");
+        String caseInput = scanner.nextLine().trim();
+        if (!caseInput.isEmpty()) {
+            config.setIgnoreCase(caseInput.equalsIgnoreCase("y"));
+        }
+
+        System.out.print("Показывать контекст? (y/n, по умолчанию y): ");
+        String contextInput = scanner.nextLine().trim();
+        if (!contextInput.isEmpty()) {
+            config.setShowContext(contextInput.equalsIgnoreCase("y"));
+        }
+
+        if (config.isShowContext()) {
+            System.out.print("Сколько строк контекста? (по умолчанию " + config.getContextLines() + "): ");
+            String contextLinesInput = scanner.nextLine().trim();
+            if (!contextLinesInput.isEmpty()) {
+                try {
+                    config.setContextLines(Integer.parseInt(contextLinesInput));
+                } catch (NumberFormatException e) {
+                    System.out.println("Неверный формат, использую: " + config.getContextLines());
+                }
+            }
+        }
+    }
+
+
+    public ComparisonResult compareFiles(String file1Path, String file2Path) throws IOException {
+        List<String> lines1 = readFile(file1Path);
+        List<String> lines2 = readFile(file2Path);
 
         List<Difference> differences = new ArrayList<>();
-
         int maxLines = Math.max(lines1.size(), lines2.size());
 
         for (int i = 0; i < maxLines; i++) {
             String line1 = i < lines1.size() ? lines1.get(i) : null;
-
             String line2 = i < lines2.size() ? lines2.get(i) : null;
 
             if (!areLinesEqual(line1, line2)) {
@@ -95,20 +137,19 @@ public class TextFileComparator {
         return new ComparisonResult(file1Path, file2Path, differences, lines1.size(), lines2.size());
     }
 
-    private static List<String> readFile(String filePath, boolean ignoreWhitespace, boolean ignoreCase) throws IOException {
 
+    private List<String> readFile(String filePath) throws IOException {
         List<String> lines = Files.readAllLines(Paths.get(filePath));
-
         List<String> processedLines = new ArrayList<>();
 
         for (String line : lines) {
             String processedLine = line;
 
-            if (ignoreWhitespace) {
+            if (config.isIgnoreWhitespace()) {
                 processedLine = processedLine.trim().replaceAll("\\s+", " ");
             }
 
-            if (ignoreCase) {
+            if (config.isIgnoreCase()) {
                 processedLine = processedLine.toLowerCase();
             }
 
@@ -118,17 +159,19 @@ public class TextFileComparator {
         return processedLines;
     }
 
-    private static boolean areLinesEqual(String line1, String line2) {
+
+    private boolean areLinesEqual(String line1, String line2) {
         if (line1 == null && line2 == null) return true;
-
         if (line1 == null || line2 == null) return false;
-
         return line1.equals(line2);
     }
 
-    private static void printComparisonResult(ComparisonResult result, boolean showContext, int contextLines) {
-        System.out.println("РЕЗУЛЬТАТЫ СРАВНЕНИЯ:");
-        System.out.println("----------------------------------------");
+
+    private void printComparisonResult(ComparisonResult result) {
+        System.out.println("========================================");
+        System.out.println("           РЕЗУЛЬТАТЫ СРАВНЕНИЯ        ");
+        System.out.println("========================================");
+        System.out.println();
 
         System.out.println("Файл 1: " + result.getFile1Path() + " (" + result.getFile1LineCount() + " строк)");
         System.out.println("Файл 2: " + result.getFile2Path() + " (" + result.getFile2LineCount() + " строк)");
@@ -151,58 +194,81 @@ public class TextFileComparator {
         List<String> originalLines1 = readOriginalFile(result.getFile1Path());
         List<String> originalLines2 = readOriginalFile(result.getFile2Path());
 
-        for (Difference diff : result.getDifferences()) {
-            printDifference(diff, originalLines1, originalLines2, showContext, contextLines);
-        }
-    }
-
-    private static void printDifference(Difference diff, List<String> originalLines1,
-                                        List<String> originalLines2, boolean showContext, int contextLines) {
-        System.out.println("Различие в строке " + diff.getLineNumber() + ":");
-
-        if (showContext) {
-            printContext(diff.getLineNumber(), originalLines1, originalLines2, contextLines);
+        if (config.isShowContext()) {
+            printAllDifferencesWithContext(result, originalLines1, originalLines2);
         } else {
-            String line1 = diff.getLine1() != null ? diff.getLine1() : "//КОНЕЦ ФАЙЛА>";
-            String line2 = diff.getLine2() != null ? diff.getLine2() : "//КОНЕЦ ФАЙЛА>";
-
-            System.out.println("  Файл 1: " + line1);
-            System.out.println("  Файл 2: " + line2);
+            printDifferencesList(result, originalLines1, originalLines2);
         }
-
-        System.out.println("----------------------------------------");
     }
 
-    private static void printContext(int lineNumber, List<String> lines1, List<String> lines2, int contextLines) {
-        int start = Math.max(1, lineNumber - contextLines);
-        int end = Math.min(Math.max(lines1.size(), lines2.size()),
-                lineNumber + contextLines);
 
-        for (int i = start; i <= end; i++) {
-            String marker = (i == lineNumber) ? ">>> " : "    ";
+    private void printAllDifferencesWithContext(ComparisonResult result,
+                                                List<String> lines1, List<String> lines2) {
+        System.out.println("----------------------------------------");
+        System.out.println("         СРАВНЕНИЕ С КОНТЕКСТОМ         ");
+        System.out.println("----------------------------------------");
+        System.out.println();
 
-            String line1 = i <= lines1.size() ? lines1.get(i - 1) : "//КОНЕЦ ФАЙЛА";
-            String line2 = i <= lines2.size() ? lines2.get(i - 1) : "//КОНЕЦ ФАЙЛА";
+        Set<Integer> differentLines = result.getDifferences().stream()
+                .map(Difference::getLineNumber)
+                .collect(Collectors.toSet());
 
-            if (i == lineNumber) {
-                System.out.printf("%s|РАЗЛИЧИЕ| Строка %d:%n", marker, i);
-                System.out.printf("%s  Файл 1: %s%n", marker, line1);
-                System.out.printf("%s  Файл 2: %s%n", marker, line2);
-            } else {
-                System.out.printf("%sСтрока %d:%n", marker, i);
-                System.out.printf("%s  Файл 1: %s%n", marker, line1);
-                System.out.printf("%s  Файл 2: %s%n", marker, line2);
+        int maxLines = Math.max(lines1.size(), lines2.size());
+
+        for (int i = 1; i <= maxLines; i++) {
+            boolean isDifferent = differentLines.contains(i);
+            String marker = isDifferent ? ">>> " : "    ";
+            String line1 = i <= lines1.size() ? lines1.get(i - 1) : "<КОНЕЦ ФАЙЛА>";
+            String line2 = i <= lines2.size() ? lines2.get(i - 1) : "<КОНЕЦ ФАЙЛА>";
+
+            System.out.printf("%sСтрока %d:%n", marker, i);
+            System.out.printf("%s  Файл 1: %s%n", marker, line1);
+            System.out.printf("%s  Файл 2: %s%n", marker, line2);
+
+            if (isDifferent) {
+                System.out.printf("%s  [РАЗЛИЧИЕ]%n", marker);
             }
 
-            if (i != end) System.out.println();
+            if (i != maxLines) {
+                System.out.println();
+            }
         }
     }
 
-    private static List<String> readOriginalFile(String filePath) {
+
+    private void printDifferencesList(ComparisonResult result,
+                                      List<String> lines1, List<String> lines2) {
+        System.out.println("----------------------------------------");
+        System.out.println("             СПИСОК РАЗЛИЧИЙ            ");
+        System.out.println("----------------------------------------");
+        System.out.println();
+
+        for (int i = 0; i < result.getDifferences().size(); i++) {
+            Difference diff = result.getDifferences().get(i);
+            int lineIndex = diff.getLineNumber() - 1;
+
+            String line1 = lineIndex < lines1.size() ? lines1.get(lineIndex) : "<КОНЕЦ ФАЙЛА>";
+            String line2 = lineIndex < lines2.size() ? lines2.get(lineIndex) : "<КОНЕЦ ФАЙЛА>";
+
+            System.out.printf("Различие #%d (строка %d):%n", i + 1, diff.getLineNumber());
+            System.out.println("   Файл 1: " + line1);
+            System.out.println("   Файл 2: " + line2);
+
+            if (i != result.getDifferences().size() - 1) {
+                System.out.println();
+                System.out.println("   ----------------------------------------");
+                System.out.println();
+            }
+        }
+    }
+
+
+    private List<String> readOriginalFile(String filePath) {
         try {
             return Files.readAllLines(Paths.get(filePath));
         } catch (IOException e) {
             return new ArrayList<>();
         }
     }
+
 }

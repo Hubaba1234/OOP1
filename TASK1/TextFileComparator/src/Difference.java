@@ -14,14 +14,4 @@ public class Difference {
     public int getLineNumber() {
         return lineNumber;
     }
-
-
-    public String getLine1() {
-        return line1;
-    }
-
-
-    public String getLine2() {
-        return line2;
-    }
 }
